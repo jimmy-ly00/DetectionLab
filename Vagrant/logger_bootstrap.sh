@@ -19,14 +19,15 @@ echo 'nameserver 192.168.56.102' >> /etc/resolv.conf
 
 # Source variables from logger_variables.sh
 # shellcheck disable=SC1091
-source /vagrant/logger_variables.sh 2>/dev/null ||
-  source /home/vagrant/logger_variables.sh 2>/dev/null ||
-  echo "Unable to locate logger_variables.sh"
+source /vagrant/logger_variables.sh 2>/dev/null 
+# source /vagrant/logger_variables.sh 2>/dev/null ||
+# source /home/vagrant/logger_variables.sh 2>/dev/null ||
+# echo "Unable to locate logger_variables.sh"
 
-if [ -z "$MAXMIND_LICENSE" ]; then
-  echo "Note: You have not entered a MaxMind API key in logger_variables.sh, so the ASNgen Splunk app may not work correctly."
-  echo "However, it is optional and everything else should function correctly."
-fi
+# if [ -z "$MAXMIND_LICENSE" ]; then
+#   echo "Note: You have not entered a MaxMind API key in logger_variables.sh, so the ASNgen Splunk app may not work correctly."
+#   echo "However, it is optional and everything else should function correctly."
+# fi
 
 export DEBIAN_FRONTEND=noninteractive
 echo "apt-fast apt-fast/maxdownloads string 10" | debconf-set-selections
@@ -82,56 +83,56 @@ test_prerequisites() {
   done
 }
 
-fix_eth1_static_ip() {
-  USING_KVM=$(sudo lsmod | grep kvm)
-  if [ -n "$USING_KVM" ]; then
-    echo "[*] Using KVM, no need to fix DHCP for eth1 iface"
-    return 0
-  fi
-  if [ -f /sys/class/net/eth2/address ]; then
-    if [ "$(cat /sys/class/net/eth2/address)" == "00:50:56:a3:b1:c4" ]; then
-      echo "[*] Using ESXi, no need to change anything"
-      return 0
-    fi
-  fi
-  # TODO: try to set correctly directly through vagrant net config
-  netplan set --origin-hint 90-disable-eth1-dhcp ethernets.eth1.dhcp4=false
-  netplan apply
+# fix_eth1_static_ip() {
+#   USING_KVM=$(sudo lsmod | grep kvm)
+#   if [ -n "$USING_KVM" ]; then
+#     echo "[*] Using KVM, no need to fix DHCP for eth1 iface"
+#     return 0
+#   fi
+#   if [ -f /sys/class/net/eth2/address ]; then
+#     if [ "$(cat /sys/class/net/eth2/address)" == "00:50:56:a3:b1:c4" ]; then
+#       echo "[*] Using ESXi, no need to change anything"
+#       return 0
+#     fi
+#   fi
+#   # TODO: try to set correctly directly through vagrant net config
+#   netplan set --origin-hint 90-disable-eth1-dhcp ethernets.eth1.dhcp4=false
+#   netplan apply
 
-  # Fix eth1 if the IP isn't set correctly
-  ETH1_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
-  if [ "$ETH1_IP" != "192.168.56.105" ]; then
-    echo "Incorrect IP Address settings detected. Attempting to fix."
-    ip link set dev eth1 down
-    ip addr flush dev eth1
-    ip link set dev eth1 up
-    counter=0
-    while :; do
-      ETH1_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
-      if [ "$ETH1_IP" == "192.168.56.105" ]; then
-        echo "[$(date +%H:%M:%S)]: The static IP has been fixed and set to 192.168.56.105"
-        break
-      else
-        if [ $counter -le 20 ]; then
-          let counter=counter+1
-          echo "[$(date +%H:%M:%S)]: Waiting for IP $counter/20 seconds"
-          sleep 1
-          continue
-        else
-          echo "[$(date +%H:%M:%S)]: Failed to fix the broken static IP for eth1. Exiting because this will cause problems with other VMs."
-          echo "[$(date +%H:%M:%S)]: eth1's current IP address is $ETH1_IP"
-          exit 1
-        fi
-      fi
-    done
-  fi
+#   # Fix eth1 if the IP isn't set correctly
+#   ETH1_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+#   if [ "$ETH1_IP" != "192.168.56.105" ]; then
+#     echo "Incorrect IP Address settings detected. Attempting to fix."
+#     ip link set dev eth1 down
+#     ip addr flush dev eth1
+#     ip link set dev eth1 up
+#     counter=0
+#     while :; do
+#       ETH1_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+#       if [ "$ETH1_IP" == "192.168.56.105" ]; then
+#         echo "[$(date +%H:%M:%S)]: The static IP has been fixed and set to 192.168.56.105"
+#         break
+#       else
+#         if [ $counter -le 20 ]; then
+#           let counter=counter+1
+#           echo "[$(date +%H:%M:%S)]: Waiting for IP $counter/20 seconds"
+#           sleep 1
+#           continue
+#         else
+#           echo "[$(date +%H:%M:%S)]: Failed to fix the broken static IP for eth1. Exiting because this will cause problems with other VMs."
+#           echo "[$(date +%H:%M:%S)]: eth1's current IP address is $ETH1_IP"
+#           exit 1
+#         fi
+#       fi
+#     done
+#   fi
 
-  # Make sure we do have a DNS resolution
-  while true; do
-    if [ "$(dig +short @8.8.8.8 github.com)" ]; then break; fi
-    sleep 1
-  done
-}
+#   # Make sure we do have a DNS resolution
+#   while true; do
+#     if [ "$(dig +short @8.8.8.8 github.com)" ]; then break; fi
+#     sleep 1
+#   done
+# }
 
 install_splunk() {
   # Check if Splunk is already installed
@@ -480,12 +481,20 @@ install_velociraptor() {
   echo "[$(date +%H:%M:%S)]: Cleanup velociraptor package building leftovers..."
   rm -rf /opt/velociraptor/logs
   echo "[$(date +%H:%M:%S)]: Installing the dpkg..."
-  if dpkg -i velociraptor_*_server.deb >/dev/null; then
+  if dpkg -i velociraptor_*_amd64.deb >/dev/null; then
     echo "[$(date +%H:%M:%S)]: Installation complete!"
   else
     echo "[$(date +%H:%M:%S)]: Failed to install the dpkg"
     return
   fi
+
+  # systemctl enable velociraptor_server.service
+  # systemctl start velociraptor_server.service
+
+  # echo "[$(date +%H:%M:%S)]: Creating admin user..."
+  # sudo -u velociraptor ./velociraptor --config /opt/velociraptor/server.config.yaml user add --role administrator vagrant vagrant
+  # rm -rf /opt/velociraptor/users/admin.db /opt/velociraptor/acl/admin.json.db
+  
 }
 
 install_suricata() {
@@ -564,13 +573,13 @@ install_guacamole() {
   echo "[$(date +%H:%M:%S)]: Setting up Guacamole..."
   cd /opt || exit 1
   echo "[$(date +%H:%M:%S)]: Downloading Guacamole..."
-  wget --progress=bar:force "https://apache.org/dyn/closer.lua/guacamole/1.3.0/source/guacamole-server-1.3.0.tar.gz?action=download" -O guacamole-server-1.3.0.tar.gz
-  tar -xf guacamole-server-1.3.0.tar.gz && cd guacamole-server-1.3.0 || echo "[-] Unable to find the Guacamole folder."
+  wget --progress=bar:force "https://apache.org/dyn/closer.lua/guacamole/1.5.0/source/guacamole-server-1.5.0.tar.gz?action=download" -O guacamole-server-1.5.0.tar.gz
+  tar -xf guacamole-server-1.5.0.tar.gz && cd guacamole-server-1.5.0 || echo "[-] Unable to find the Guacamole folder."
   echo "[$(date +%H:%M:%S)]: Configuring Guacamole and running 'make' and 'make install'..."
   ./configure --with-init-dir=/etc/init.d && make --quiet &>/dev/null && make --quiet install &>/dev/null || echo "[-] An error occurred while installing Guacamole."
   ldconfig
   cd /var/lib/tomcat9/webapps || echo "[-] Unable to find the tomcat9/webapps folder."
-  wget --progress=bar:force "https://apache.org/dyn/closer.lua/guacamole/1.3.0/binary/guacamole-1.3.0.war?action=download" -O guacamole.war
+  wget --progress=bar:force "https://apache.org/dyn/closer.lua/guacamole/1.5.0/binary/guacamole-1.5.0.war?action=download" -O guacamole.war
   mkdir /etc/guacamole
   mkdir /etc/guacamole/shares
   sudo chmod 777 /etc/guacamole/shares
@@ -622,7 +631,7 @@ main() {
   apt_install_prerequisites
   modify_motd
   test_prerequisites
-  fix_eth1_static_ip
+  # fix_eth1_static_ip
   install_splunk
   download_palantir_osquery_config
   install_fleet_import_osquery_config
